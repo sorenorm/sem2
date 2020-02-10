@@ -1,0 +1,196 @@
+---
+title: "portfolio 1 experimental methods 2"
+author: "Astrid Olling, Daniel Christensen, Karoline Klitgaard, Søren Orm, Pernille Jensen"
+date: "3/2/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(pacman)
+
+p_load(tidyverse, sjPlot, dplyr, nlme, ggplot2, pastecs)
+```
+
+```{r}
+
+sleepstudy <- read.csv("sleepstudy.csv")
+
+```
+
+##Tasks ####1. Plot the data
+
+1.a: Get the data from one participant, e.g. using subset(). Make a linear regression for reaction time as a function of days of sleep deprivation, e.g. using lm(). 
+
+```{r}
+
+#We choose one random participant from the original sleepstudy dataframe
+our_guy <- subset(sleepstudy, sleepstudy$Subject == 352)
+
+```
+
+```{r}
+
+#linear regression on reaction time by days of sleep deprivation on our participant
+summary(lm(Reaction ~ Days, our_guy))
+
+```
+
+Report the F-statistics.
+
+The reaction times in the task were significantly effected by days of sleep deprevation with F(1, 8) = 23.32 at p-value = 0.001307
+
+1.b: How many degrees of freedom does the relevant F-distribution have?
+
+The degrees of freedom for the model is 1 and the degrees of freedom for the residuals is 8
+
+1.c: At which F-value does a regression with this distribution become statistically significant (p<0.05)? 
+
+```{r}
+
+#we calculate the cut-off value
+qf(0.95, 1, 8)
+
+#cutoff = 5.317655
+
+```
+A regression with this distribution becomes statistically significant at F-value 5.317655
+
+1.d: Make a plot of the F-distribution.
+
+```{r}
+
+dist_f(f=0, deg.f1 = 1, deg.f2 = 8,xmax=7)
+
+```
+
+####2.For all participants in the experiment
+
+2.a: Find the coefficients (slope and intercept) for the regression for reaction time as a function of days of sleep deprivation
+
+```{r}
+
+#We convert the subject values to factors
+sleepstudy$Subject <- as.factor(sleepstudy$Subject)
+
+#Slopes and intercepts for each participants
+list <- lmList(Reaction ~ Days | Subject, data = sleepstudy, pool = FALSE)
+
+list
+
+```
+
+The coefficients for the regression are found in the table above.
+
+2.b: Combine both scatter plot and regression line in the same figure. You may also include all participants in one plot.
+
+```{r}
+
+#group by subject
+grouped_pers <- group_by(sleepstudy, Subject)
+
+#creating a plot
+ggplot(grouped_pers, aes(Days, Reaction, color = Subject)) +
+  geom_point() + 
+  stat_smooth(method = lm, geom='line', alpha=0.5, se=FALSE)+
+  theme_minimal()+
+    labs(title = "Reaction time/days of sleep deprivation by participants", x = "Days of sleep deprivation", y = "Reaction time (ms)")
+
+```
+
+2.c: Collect and report the inferential statistics for each participant in a table using t-statistics, including t-value, df and p-value.
+
+```{r}
+#Saving a summary of the output from the linear model:
+listsummary <- summary(list)
+
+#Creating a data frame from the output:
+final <- data.frame(listsummary[["coefficients"]])
+
+#with relevant columns
+final <- data.frame(row.names(final), final$t.value.Days, final$Pr...t...Days)
+
+#Adding columns with degrees of freedom:
+final$df_model <- 1
+final$df_res <- 8
+
+#Changing the column names:
+colnames(final)[1] <- "ID"
+colnames(final)[2] <- "t values"
+colnames(final)[3] <- "p values"
+
+final
+```
+
+The t-values, p-values, and degrees of freedom for each participant are found in the table above.
+
+2.d: How many individual participants display a statistically significant effect of sleep deprivation (p-values uncorrected for mulitple comparisons)?
+
+When looking at the p-values from the output it seems that sleep deprivation has a significant effect on reaction time for all participants. It should hovever be emphasized that one of the participants (no. 335) seems to have decreased reaction time by days of sleep deprivation. 
+
+####3. Across participants: 3.a: Use the slopes you found for each participant in exercise 2 as a new dataset. Test the hypothesis that the slopes are larger than zero against the null-hypothesis that the slopes are zero 
+
+```{r}
+#dataframe with only the coefficients
+all_coefs <- coef(list, data = sleepstudy)
+
+#t-test for testing the hypothesis
+t.test(all_coefs$Days, alternative = "greater", paired = FALSE)
+
+```
+
+The slopes were found to be significantly greater than 0 with t(17) = 6.7715 at p > 0.001
+
+3.b: Justify your use of test statistics.
+
+```{r}
+#checking if the data is normally distributed
+
+#numeric inspection of data distribution
+round(stat.desc(all_coefs$Days, norm = TRUE, basic = FALSE), digits=2)
+
+#visual inspection of data distribution
+hist(all_coefs$Days)
+```
+
+We made a one tailed t-test which compares the alternative hypothesis to the null hypothesis. 
+The data is normally distributed (the shape of the histogram, the Shapiro Wilks test for normality, and the skew.2SE and kurt.2SE indicates normality)
+
+3.c: Report inferential statistics.
+
+The t-test is significant at t(17) = 6.7715, p-value = 1.632e-06
+Which leaves us to reject the null hypothesis that the sample mean is equal to zero
+
+3.d: Make a plot with the mean reaction time and standard errror bars for each day across participants and plot the averaged regression line in the same figure.
+```{r}
+#days as factor
+sleepstudy$Days <- as.factor(sleepstudy$Days)
+
+#boxplot for mean reaction time by days
+reg_line <- coef(lm(Reaction ~ Days, data = sleepstudy))
+
+ggplot(sleepstudy, aes(x = Days, y = Reaction)) +
+  geom_boxplot(width=0.5, color = 'darkblue', fill = 'lightblue') +
+  stat_summary(fun.y = mean, geom = "point", shape = 16, color="red") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", color = 'black', width = 0.1) +
+  geom_abline(intercept = reg_line[1], slope = reg_line[2]) +
+  ggtitle("Reaction time by days w/out sleep") +
+  labs(x = "Days", y = "Reaction time /ms") +
+  theme_minimal()
+
+```
+
+
+####Voluntory bonus task Add 10% white/uniform noise to the Reaction data. What happens to the single participant coefficients statistics and to the group effects?
+
+```{r}
+#sleepstudy$reaction_noise <- jitter(sleepstudy$Reaction ) 
+#wuuuut
+
+sleepstudy$noice <- runif(180, -10, 10)
+
+sleepstudy$reaction_noiced <- sleepstudy$Reaction + sleepstudy$Reaction * sleepstudy$noice/100
+  
+  
+```
+

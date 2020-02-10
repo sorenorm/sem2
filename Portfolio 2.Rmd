@@ -1,0 +1,22 @@
+---
+title: "Portefolio 2"
+author: "Søren Orm Hansen"
+date: "2/3/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+
+
+```
+
+
+```{r}
+sleepstudy <- read_csv2(sleepstudy.csv)
+```
+

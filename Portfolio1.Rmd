@@ -1,0 +1,171 @@
+---
+title: "Portfolio 1"
+author: 'Søren Orm Hansen'
+output: html_notebook
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(pacman)
+
+p_load(tidyverse, sjPlot, dplyr, nlme, ggplot2, pastecs)
+
+```
+
+
+```{r}
+sleep <- read.csv('sleepstudy.csv')
+```
+
+###1.a: Get the data from one participant, e.g. using subset(). Make a linear regression for reaction time as a function of days of sleep deprivation, e.g. using lm(). Report the F-statistics.
+
+```{r}
+df <- subset(sleep, Subject == 352)
+
+```
+
+```{r}
+regr1 <- lm(Reaction ~ Days, df)
+
+summary(regr1)
+```
+Report f-stats:
+The 
+
+
+
+###1.b: How many degrees of freedom does the relevant F-distribution have?
+One for the model and 8 for the residuals
+
+
+###1.c: At which F-value does a regression with this distribution become statistically significant (p<0.05)? 
+
+```{r}
+f_val <- qf(0.95, 1, 8)
+
+f_val
+```
+
+With a f-distribution 1 and 8 degrees of freedom the regression becomes
+
+
+###1.d: Make a plot of the F-distribution.
+
+```{r}
+dist_f(f=0, deg.f1 = 1, deg.f2 = 8, xmax=7)
+```
+
+
+##2.a: Find the coefficients (slope and intercept) for the regression for reaction time as a function of days of sleep deprivation (a hint for the solution: use group_by() in tidyverse or this function here: https://stat.ethz.ch/R-manual/R-devel/library/nlme/html/lmList.html, hint2: pool=FALSE)
+
+```{r}
+sleep$Subject <- as.factor(sleep$Subject )
+
+sleep <- group_by(sleep, Subject)
+
+```
+
+```{r}
+fit <- lmList(Reaction ~ Days | Subject, data = sleep, pool = FALSE)
+
+fit
+```
+
+
+##2.b: Combine both scatter plot and regression line in the same figure. You may also include all participants in one plot.
+
+```{r}
+ggplot(sleep, aes(Days, Reaction, color = Subject)) +
+  geom_point() + 
+  stat_smooth(method = lm, geom='line', alpha=0.5, se=FALSE)
+  theme_minimal()
+
+
+
+```
+
+
+##2.c: Collect and report the inferential statistics for each participant in a table using t-statistics, including t-value, df and p-value.
+
+```{r}
+sum <- summary(fit)
+
+df_coef <- data.frame(sum[["coefficients"]])
+
+df_coef$ID <- row.names(df_coef)
+
+inf_stats <- data.frame(df_coef$ID,df_coef$t.value.Days, df_coef$Pr...t...Days)
+
+colnames(inf_stats)[1] <- "ID"
+colnames(inf_stats)[2] <- "t-value_Days"
+colnames(inf_stats)[3] <- "p-value_Days"
+
+inf_stats$df_model <- 1
+inf_stats$df_res <- 8
+
+inf_stats
+```
+
+
+##2.d: How many individual participants display a statistically significant effect of sleep deprivation (p-values uncorrected for mulitple comparisons)?
+
+All 18 of the participants are statistically significant with a p-value < 0.05
+
+
+##3.a: Use the slopes you found for each participant in exercise 2 as a new dataset. Test the hypothesis that the slopes are larger than zero against the null-hypothesis that the slopes are zero (i.e. no differences in response time exist as a function of time).
+
+```{r}
+coefs <- coef(fit)
+
+coefs <- select(coefs, Days)
+
+coefs$null <- 0
+
+t.test(coefs$Days, alternative = 'greater')
+
+```
+
+
+
+
+
+
+
+
+##3.b: Justify your use of test statistics.
+```{r}
+hist(coefs$Days)
+
+round(stat.desc(coefs$Days, norm = T, basic = F), digits = 4)
+
+```
+
+
+We used a one sample t-test to test whether the slopes are signigicantly larger that 0.
+The data is normally distributed (the shape of the histogram, the Shapiro Wilks test for normality, and the skew.2SE and kurt.2SE indicates normality).
+
+
+##3.c: Report inferential statistics.
+
+The t-test found that the slopes were singnificantly larger than 0, t(17) = 6.7715, SEM = 10.50, p < .001. 
+
+##3.d: Make a plot with the mean reaction time and standard errror bars for each day across participants and plot the averaged regression line in the same figure.
+
+```{r}
+reg_line <- coef(lm(Reaction ~ Days, data = sleepstudy))
+
+ggplot(sleepstudy, aes(x = Days, y = Reaction, fill = Days)) +
+  scale_color_gradientn(colours = rainbow(4)) +
+  geom_boxplot(width=0.5) +
+  stat_summary(fun.y = mean, geom = "point", shape = 16, color="red") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", color = 'black', width = 0.1) +
+  geom_abline(intercept = reg_line[1], slope = reg_line[2]) +
+  ggtitle("Reaction time by days w/out sleep") +
+  labs(x = "Days", y = "Reaction time /ms") +
+  theme_minimal()
+
+```
